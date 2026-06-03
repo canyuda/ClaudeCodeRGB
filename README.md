@@ -79,7 +79,10 @@ iwr -useb https://raw.githubusercontent.com/canyuda/ClaudeCodeRGB/main/install.p
 
 ## 配置 Claude Code Hooks
 
-> 如果你使用了一键部署脚本，可以跳过本节，脚本已自动完成配置。
+> 重要的事情说三遍
+> **如果你使用了一键部署脚本，可以跳过本节，脚本已自动完成配置**。
+> **如果你使用了一键部署脚本，可以跳过本节，脚本已自动完成配置**。
+> **如果你使用了一键部署脚本，可以跳过本节，脚本已自动完成配置**。
 
 Claude Code 的 user 级配置文件是：
 
