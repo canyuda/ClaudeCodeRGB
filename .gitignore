@@ -42,3 +42,5 @@ secrets.h
 credentials.h
 .env
 __pycache__/
+.claude/hooks/
+.claude/settings.local.json

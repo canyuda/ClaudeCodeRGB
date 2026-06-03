@@ -34,12 +34,14 @@ ok()    { echo -e "${GREEN}[OK]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 err()   { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
+# Read from /dev/tty so prompts work even when piped (curl | bash)
 prompt_required() {
     local varname="$1"
     local prompt_text="$2"
     local value=""
     while [ -z "$value" ]; do
-        read -rp "$(echo -e "${CYAN}${prompt_text}${NC}: ")" value
+        echo -e -n "${CYAN}${prompt_text}${NC}: "
+        read -r value </dev/tty
         if [ -z "$value" ]; then
             warn "${varname} cannot be empty"
         fi
@@ -50,7 +52,8 @@ prompt_required() {
 prompt_optional() {
     local prompt_text="$1"
     local value=""
-    read -rp "$(echo -e "${CYAN}${prompt_text}${NC} (leave empty to skip): ")" value
+    echo -e -n "${CYAN}${prompt_text}${NC} (leave empty to skip): "
+    read -r value </dev/tty
     echo "$value"
 }
 
@@ -59,7 +62,8 @@ prompt_yesno() {
     local default="${2:-n}"
     local answer=""
     while true; do
-        read -rp "$(echo -e "${CYAN}${prompt_text}${NC} [y/N]: ")" answer
+        echo -e -n "${CYAN}${prompt_text}${NC} [y/N]: "
+        read -r answer </dev/tty
         answer="${answer:-$default}"
         case "$answer" in
             y|Y) return 0 ;;
