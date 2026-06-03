@@ -2,6 +2,40 @@
 
 基于 ESP32C3 Super Mini + RGB 灯模块(共阴) 实现的指示灯系统。
 
+<details>
+<summary>目录</summary>
+
+[toc]
+
+</details>
+
+## 成果展示
+
+<table>
+  <tr>
+    <td align="center">
+      <b>🟢 绿灯 — idle / done</b><br><br>
+      <img src="./result/绿灯.jpg" width="300" />
+    </td>
+    <td align="center">
+      <b>🔴 红灯 — error</b><br><br>
+      <video src="./result/红灯.mp4" width="300" controls></video>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
+      <b>🟡 黄灯 — ask</b><br><br>
+      <video src="./result/黄灯.mp4" width="300" controls></video>
+    </td>
+    <td align="center">
+      <b>🔵➡️🟣➡️🔵 蓝转紫转蓝 — running → tool → running</b><br><br>
+      <video src="./result/蓝转紫转蓝灯.mp4" width="300" controls></video>
+    </td>
+  </tr>
+</table>
+
+---
+
 ## 软硬件环境
 
 ### 电脑
@@ -85,18 +119,18 @@
 3. 将 ESP32 板包添加到 Arduino IDE
    1. 导航到File > Preferences ，然后使用以下 url 填写“Additional Boards Manager URL” ：`https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json`
    2. 等待下载
-   3. 导航到Tools > Board > Boards Manager... ，在搜索框中输入关键字“ esp32 ”，选择最新版本的esp32并安装它。![esp32c3烧录准备](./images/esp32c3烧录准备.png)
+   3. 导航到 Tools > Board > Boards Manager...，在搜索框中输入关键字 “esp32”，选择最新版本的 ESP32 并安装。![esp32c3烧录准备](./images/esp32c3烧录准备.png)
    4. 等待安装
    5. 选择开发板: ![选择开发板](./images/烧录准备-2.png)
    6. 选择开发板: ![选择esp32c3 dev module](./images/烧录准备-3.png)
 
 #### 编码
 
-这里让Claude Code帮你实现
+此部分由 Claude Code 实现
 
 | 状态名       | 指令          | 灯效       |
 | --------- | ----------- | -------- |
-| `idle`    | 空闲          | 灭灯       |
+| `idle`    | 空闲          | 绿色常亮       |
 | `running` | Claude 正在运行 | 蓝色慢闪     |
 | `tool`    | 正在调用工具      | 紫色快闪     |
 | `ask`     | 等待用户输入 / 权限 | 黄色快闪     |
@@ -415,9 +449,9 @@ void loop() {
 > 方式1：按住BOOT上电。
 > 方式2：按住ESP32C3的BOOT按键，然后按下RESET按键，松开RESET按键，再松开BOOT按键，此时ESP32C3会进入下载模式。（每次连接都需要重新进入下载模式，有时按一遍，端口不稳定会断开，可以通过端口识别声音来判断）
 > 
-> Q2 上传之后程序无法运行 上传成功之后需要按一下Reset按键，才会执行。
-> 
-> Q3 ESP32C3SuperMini Arduino 串口无法打印 需要将工具栏中USB CDC On Boot 设置成Enabled。
+> Q2：上传之后程序无法运行。上传成功后需要按一下 Reset 按键，程序才会执行。
+>
+> Q3：ESP32-C3 SuperMini Arduino 串口无法打印。需要将工具栏中 "USB CDC On Boot" 设置成 "Enabled"。
 
 ##### 验证
 
@@ -431,7 +465,7 @@ void loop() {
 
 > 确保写入完成
 
-按下Reset键(程序里面写了上电自检逻辑, `红闪一次 → 绿闪一次 → 蓝闪一次 → 绿灯常亮)
+按下 Reset 键（程序内置上电自检逻辑：红灯闪烁一次 → 绿灯闪烁一次 → 蓝灯闪烁一次 → 绿灯常亮）
 
 | 问题          | 处理                             |
 | ----------- | ------------------------------ |
@@ -521,7 +555,7 @@ printf 'STATE:done\n' > /dev/cu.usbmodem1201
 
 > 在`~/.claude/hooiks/`目录创建 `claude_rgb_hook.py` 文件
 
-> 这里也让Claude Code来做, 下面是我的例子
+> 此部分也由 Claude Code 实现，以下是示例
 
 <details>
 <summary>claude_rgb_hook.py</summary>
@@ -947,7 +981,7 @@ echo '{"hook_event_name":"Notification","notification_type":"permission_prompt",
 ```
 预期：黄灯快闪。
 
-> 模拟完成：
+> 模拟任务完成：
 
 ```bash
 echo '{"hook_event_name":"Stop","last_assistant_message":"done"}' \
@@ -985,7 +1019,11 @@ Claude Code 的 user 级配置文件是：
 ~/.claude/settings.json
 ```
 
-官方文档说明 user settings 作用于所有项目，project settings 则放在项目里的 .claude/settings.json，local settings 放在 .claude/settings.local.json。
+官方文档说明：
+
+- user settings 作用于所有项目
+- project settings 放在项目里的 `.claude/settings.json`
+- local settings 放在 `.claude/settings.local.json`
 
 如果你希望所有项目都用这个 RGB 状态灯，编辑：
 
@@ -1333,3 +1371,28 @@ Claude 工具执行失败 / StopFailure
 ```
 
 配置里使用了 `"async": true`，官方文档说明异步 command hook 会在后台运行，Claude Code 不会等待 hook 完成；这正适合 RGB 状态灯这种副作用型集成。
+
+---
+
+## 功能列表
+
+### ✅ 已实现
+
+- [x] 点灯
+- [x] 烧录程序
+- [x] 对接 Claude Code，实现 CC 不同状态下的灯光变化（idle / running / tool / ask / done / error）
+
+### 🚧 暂未实现
+
+- [ ] 3D 打印外壳（急需懂 3D 打印的同学帮助）
+- [ ] 基于 WiFi 或蓝牙实现无线状态灯（使用充电宝供电）
+- [ ] 焊接电池模块实现真正意义上的无线状态灯（产品化）
+
+### 💡 可能的优化方案
+
+1. **更轻量的硬件方案**：找一款更轻量级、更便宜的开发板，或者自己定制（本人不擅长硬件，急需懂硬件的同学帮助）
+2. **产品分级**：
+   - **A 档**：仅三色灯（有线）
+   - **B 档**：三色灯 + 蜂鸣器（有线）
+   - **C 档**：三色灯（WiFi 无线）
+   - ...
