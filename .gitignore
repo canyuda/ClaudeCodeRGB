@@ -41,3 +41,4 @@ dependencies.lock
 secrets.h
 credentials.h
 .env
+__pycache__/

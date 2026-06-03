@@ -5,11 +5,29 @@ import json
 import os
 import sys
 import time
-import termios
+
+IS_WINDOWS = sys.platform == "win32"
+
+if IS_WINDOWS:
+    import ctypes
+    import ctypes.wintypes as wt
+
+    try:
+        import winreg
+    except ImportError:
+        winreg = None
+else:
+    import termios
+
 from typing import Any, Dict, Optional
 
 
-DEFAULT_PORT = "/dev/cu.usbmodem1201"
+# Default port differs by platform
+if IS_WINDOWS:
+    DEFAULT_PORT = "COM3"
+else:
+    DEFAULT_PORT = "/dev/cu.usbmodem1201"
+
 DEFAULT_BAUD = 115200
 
 VALID_STATES = {
@@ -21,17 +39,141 @@ VALID_STATES = {
     "error",
 }
 
-PORT_PATTERNS = [
+PORT_PATTERNS_POSIX = [
     # macOS
     "/dev/cu.usbmodem*",
     "/dev/cu.usbserial*",
     "/dev/cu.wchusbserial*",
     "/dev/cu.SLAB_USBtoUART*",
-
     # Linux
     "/dev/ttyACM*",
     "/dev/ttyUSB*",
 ]
+
+
+# ============================================================
+# Windows serial via ctypes (kernel32.dll)
+# ============================================================
+
+if IS_WINDOWS:
+    kernel32 = ctypes.windll.kernel32
+
+    _GENERIC_READ = 0x80000000
+    _GENERIC_WRITE = 0x40000000
+    _OPEN_EXISTING = 3
+    _INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
+
+    # DCB structure for serial port configuration
+    class _DCB(ctypes.Structure):
+        _fields_ = [
+            ("DCBlength", wt.DWORD),
+            ("BaudRate", wt.DWORD),
+            ("fFlags", wt.DWORD),
+            ("wReserved", wt.WORD),
+            ("XonLim", wt.WORD),
+            ("XoffLim", wt.WORD),
+            ("ByteSize", wt.BYTE),
+            ("Parity", wt.BYTE),
+            ("StopBits", wt.BYTE),
+            ("XonChar", ctypes.c_char),
+            ("XoffChar", ctypes.c_char),
+            ("ErrorChar", ctypes.c_char),
+            ("EofChar", ctypes.c_char),
+            ("EvtChar", ctypes.c_char),
+            ("wReserved1", wt.WORD),
+        ]
+
+    class _COMMTIMEOUTS(ctypes.Structure):
+        _fields_ = [
+            ("ReadIntervalTimeout", wt.DWORD),
+            ("ReadTotalTimeoutMultiplier", wt.DWORD),
+            ("ReadTotalTimeoutConstant", wt.DWORD),
+            ("WriteTotalTimeoutMultiplier", wt.DWORD),
+            ("WriteTotalTimeoutConstant", wt.DWORD),
+        ]
+
+    def _win_open_port(port: str):
+        """Open a Windows COM port, return handle or None."""
+        # On Windows, COM ports >= 10 need \\.\ prefix
+        if port.startswith("COM") and len(port) > 4:
+            win_port = f"\\\\.\\{port}"
+        else:
+            win_port = port
+
+        handle = kernel32.CreateFileW(
+            win_port,
+            _GENERIC_READ | _GENERIC_WRITE,
+            0,
+            None,
+            _OPEN_EXISTING,
+            0,
+            None,
+        )
+        if handle == _INVALID_HANDLE_VALUE or handle is None:
+            return None
+        return handle
+
+    def _win_close_port(handle) -> None:
+        kernel32.CloseHandle(handle)
+
+    def _win_configure_port(handle, baud: int) -> bool:
+        """Configure DCB and timeouts on an open handle."""
+        dcb = _DCB()
+        dcb.DCBlength = ctypes.sizeof(_DCB)
+
+        if not kernel32.GetCommState(handle, ctypes.byref(dcb)):
+            return False
+
+        dcb.BaudRate = baud
+        dcb.ByteSize = 8
+        dcb.Parity = 0   # NOPARITY
+        dcb.StopBits = 0  # ONESTOPBIT
+        dcb.fFlags = 0x01  # fBinary only
+
+        if not kernel32.SetCommState(handle, ctypes.byref(dcb)):
+            return False
+
+        timeouts = _COMMTIMEOUTS()
+        timeouts.ReadIntervalTimeout = 50
+        timeouts.ReadTotalTimeoutMultiplier = 0
+        timeouts.ReadTotalTimeoutConstant = 50
+        timeouts.WriteTotalTimeoutMultiplier = 0
+        timeouts.WriteTotalTimeoutConstant = 1000
+
+        if not kernel32.SetCommTimeouts(handle, ctypes.byref(timeouts)):
+            return False
+
+        return True
+
+    def _win_write_serial(state: str, port: str, baud: int) -> bool:
+        """Write state to serial on Windows using ctypes."""
+        handle = _win_open_port(port)
+        if handle is None:
+            log(f"failed to open port {port}")
+            return False
+
+        try:
+            if not _win_configure_port(handle, baud):
+                log(f"failed to configure port {port}")
+                return False
+
+            payload = f"STATE:{state}\n".encode("utf-8")
+            written = wt.DWORD()
+
+            # Send twice to reduce packet loss (same as POSIX)
+            kernel32.WriteFile(
+                handle, payload, len(payload), ctypes.byref(written), None
+            )
+            time.sleep(0.04)
+            kernel32.WriteFile(
+                handle, payload, len(payload), ctypes.byref(written), None
+            )
+
+            log(f"sent STATE:{state} to {port}")
+            return True
+
+        finally:
+            _win_close_port(handle)
 
 
 def log(message: str) -> None:
@@ -46,17 +188,47 @@ def log(message: str) -> None:
         with open(log_path, "a", encoding="utf-8") as f:
             f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {message}\n")
     except Exception:
-        # 日志失败不能影响 Claude Code
+        # Log failure must not affect Claude Code
         pass
 
 
 def scan_ports() -> list[str]:
+    if IS_WINDOWS:
+        return _scan_ports_windows()
+    return _scan_ports_posix()
+
+
+def _scan_ports_posix() -> list[str]:
+    ports: list[str] = []
+    for pattern in PORT_PATTERNS_POSIX:
+        ports.extend(glob.glob(pattern))
+    return sorted(set(ports))
+
+
+def _scan_ports_windows() -> list[str]:
+    """Scan COM ports via Windows registry (HARDWARE\\DEVICEMAP\\SERIALCOMM)."""
     ports: list[str] = []
 
-    for pattern in PORT_PATTERNS:
-        ports.extend(glob.glob(pattern))
+    if winreg is not None:
+        try:
+            key = winreg.OpenKey(
+                winreg.HKEY_LOCAL_MACHINE,
+                r"HARDWARE\DEVICEMAP\SERIALCOMM",
+            )
+            i = 0
+            while True:
+                try:
+                    _, value, _ = winreg.EnumValue(key, i)
+                    if isinstance(value, str) and value.startswith("COM"):
+                        ports.append(value)
+                    i += 1
+                except OSError:
+                    break
+            winreg.CloseKey(key)
+        except Exception:
+            pass
 
-    return sorted(set(ports))
+    return sorted(ports)
 
 
 def pick_serial_port(cli_port: Optional[str] = None) -> Optional[str]:
@@ -67,7 +239,8 @@ def pick_serial_port(cli_port: Optional[str] = None) -> Optional[str]:
     if env_port:
         return env_port
 
-    if os.path.exists(DEFAULT_PORT):
+    # On Windows, skip the file-existence check (COM ports aren't files)
+    if not IS_WINDOWS and os.path.exists(DEFAULT_PORT):
         return DEFAULT_PORT
 
     ports = scan_ports()
@@ -88,8 +261,6 @@ def baud_to_termios(baud: int) -> int:
         return termios.B57600
     if baud == 115200:
         return termios.B115200
-
-    # 默认 115200
     return termios.B115200
 
 
@@ -139,7 +310,40 @@ def configure_serial(fd: int, baud: int) -> None:
     termios.tcsetattr(fd, termios.TCSANOW, attrs)
 
 
-def write_state_to_serial(state: str, port: Optional[str] = None, baud: int = DEFAULT_BAUD) -> bool:
+def _write_serial_posix(state: str, port: str, baud: int) -> bool:
+    """Write state to serial on POSIX systems using termios."""
+    payload = f"STATE:{state}\n".encode("utf-8")
+
+    try:
+        fd = os.open(port, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
+
+        try:
+            configure_serial(fd, baud)
+
+            # Send twice to reduce packet loss
+            os.write(fd, payload)
+            time.sleep(0.04)
+            os.write(fd, payload)
+
+            try:
+                termios.tcdrain(fd)
+            except Exception:
+                pass
+
+            log(f"sent STATE:{state} to {port}")
+            return True
+
+        finally:
+            os.close(fd)
+
+    except Exception as e:
+        log(f"serial write failed: port={port}, error={repr(e)}")
+        return False
+
+
+def write_state_to_serial(
+    state: str, port: Optional[str] = None, baud: int = DEFAULT_BAUD
+) -> bool:
     state = state.strip().lower()
 
     if state not in VALID_STATES:
@@ -152,33 +356,10 @@ def write_state_to_serial(state: str, port: Optional[str] = None, baud: int = DE
         log("No serial port found")
         return False
 
-    payload = f"STATE:{state}\n".encode("utf-8")
-
-    try:
-        fd = os.open(picked_port, os.O_RDWR | os.O_NOCTTY | os.O_NONBLOCK)
-
-        try:
-            configure_serial(fd, baud)
-
-            # 连续发送两次，降低偶发丢包概率
-            os.write(fd, payload)
-            time.sleep(0.04)
-            os.write(fd, payload)
-
-            try:
-                termios.tcdrain(fd)
-            except Exception:
-                pass
-
-            log(f"sent STATE:{state} to {picked_port}")
-            return True
-
-        finally:
-            os.close(fd)
-
-    except Exception as e:
-        log(f"serial write failed: port={picked_port}, error={repr(e)}")
-        return False
+    if IS_WINDOWS:
+        return _win_write_serial(state, picked_port, baud)
+    else:
+        return _write_serial_posix(state, picked_port, baud)
 
 
 def read_hook_input() -> Dict[str, Any]:
@@ -205,41 +386,32 @@ def state_from_hook(data: Dict[str, Any]) -> Optional[str]:
     tool_name = data.get("tool_name", "")
     notification_type = data.get("notification_type", "")
 
-    # 当 Claude Code 启动新会话或恢复会话时，会触发 SessionStart
     if event == "SessionStart":
         return "idle"
 
     if event == "SessionEnd":
         return "idle"
 
-    # 用户提交 prompt 后，Claude 开始处理
     if event == "UserPromptSubmit":
         return "running"
 
-    # 工具调用前：显示 tool
-    # AskUserQuestion / ExitPlanMode 本质上是等用户介入，显示 ask
     if event == "PreToolUse":
         if tool_name in {"AskUserQuestion", "ExitPlanMode"}:
             return "ask"
         return "tool"
 
-    # 工具成功后：回到 running
     if event == "PostToolUse":
         return "running"
 
-    # 工具失败：错误
     if event == "PostToolUseFailure":
         return "error"
 
-    # 即将弹权限确认框：等待用户
     if event == "PermissionRequest":
         return "ask"
 
-    # 用户拒绝权限：错误/中断态
     if event == "PermissionDenied":
         return "error"
 
-    # Claude 等待输入或权限时会触发 Notification
     if event == "Notification":
         if notification_type == "permission_prompt":
             return "ask"
@@ -247,16 +419,14 @@ def state_from_hook(data: Dict[str, Any]) -> Optional[str]:
         if notification_type == "elicitation_dialog":
             return "ask"
 
-        # 关键修复：idle_prompt 不再映射为 ask
         if notification_type == "idle_prompt":
             return None
 
         return None
-    # 主 agent 完成本轮响应
+
     if event == "Stop":
         return "done"
 
-    # API / 鉴权 / 模型等异常
     if event == "StopFailure":
         return "error"
 
@@ -271,32 +441,32 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "state",
         nargs="?",
-        help="Manual test state: idle, done, running, tool, ask, error"
+        help="Manual test state: idle, done, running, tool, ask, error",
     )
 
     parser.add_argument(
         "--port",
         default=None,
-        help=f"Serial port, default from CLAUDE_RGB_PORT or {DEFAULT_PORT}"
+        help=f"Serial port, default from CLAUDE_RGB_PORT or {DEFAULT_PORT}",
     )
 
     parser.add_argument(
         "--baud",
         type=int,
         default=DEFAULT_BAUD,
-        help="Serial baud rate, default 115200"
+        help="Serial baud rate, default 115200",
     )
 
     parser.add_argument(
         "--scan",
         action="store_true",
-        help="List candidate serial ports"
+        help="List candidate serial ports",
     )
 
     parser.add_argument(
         "--print-input",
         action="store_true",
-        help="Debug: print stdin JSON parsed from Claude Code hook"
+        help="Debug: print stdin JSON parsed from Claude Code hook",
     )
 
     return parser.parse_args()
@@ -309,10 +479,11 @@ def main() -> int:
         ports = scan_ports()
         for port in ports:
             print(port)
+        if not ports:
+            print("No serial ports found.", file=sys.stderr)
         return 0
 
-    # 手动测试模式：
-    # ~/.claude/hooks/claude_rgb_hook.py running
+    # Manual test mode
     if args.state:
         state = args.state.strip().lower()
 
@@ -330,7 +501,7 @@ def main() -> int:
 
         return 0
 
-    # Claude Code hook 模式
+    # Claude Code hook mode
     data = read_hook_input()
 
     if args.print_input:
@@ -341,7 +512,7 @@ def main() -> int:
     if state:
         write_state_to_serial(state, port=args.port, baud=args.baud)
 
-    # 关键：RGB hook 不应阻断 Claude Code
+    # RGB hook must not block Claude Code
     return 0
 
 
