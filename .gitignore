@@ -1,0 +1,42 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Arduino IDE
+build/
+*.hex
+*.bin
+*.elf
+*.map
+
+# PlatformIO
+.pio/
+lib/readme.txt
+
+# ESP-IDF
+sdkconfig.old
+managed_components/
+dependencies.lock
+
+# Compiled objects
+*.o
+*.obj
+*.d
+
+# Firmware outputs (keep source, ignore binaries)
+*.uf2
+*.zip
+
+# Secrets (never commit credentials)
+secrets.h
+credentials.h
+.env
