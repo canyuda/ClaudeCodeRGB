@@ -1,4 +1,4 @@
-# 为什么适合 Claude Code RGB 状态灯项目
+# 为什么选择ESP32-C3 SuperMini.md
 
 ## 1. 有原生 USB，适合直接和电脑通信
 
