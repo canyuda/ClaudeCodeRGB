@@ -19,17 +19,17 @@
     </td>
     <td align="center">
       <b>🔴 红灯 — error</b><br><br>
-      <video src="./result/红灯.mp4" width="300" controls></video>
+      <img src="./result/红灯.gif" width="300" />
     </td>
   </tr>
   <tr>
     <td align="center">
       <b>🟡 黄灯 — ask</b><br><br>
-      <video src="./result/黄灯.mp4" width="300" controls></video>
+      <img src="./result/黄灯.gif" width="300" />
     </td>
     <td align="center">
       <b>🔵➡️🟣➡️🔵 蓝转紫转蓝 — running → tool → running</b><br><br>
-      <video src="./result/蓝转紫转蓝灯.mp4" width="300" controls></video>
+      <img src="./result/蓝转紫转蓝灯.gif" width="300" />
     </td>
   </tr>
 </table>
