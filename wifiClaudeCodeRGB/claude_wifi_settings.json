@@ -1,8 +1,8 @@
 {
   "env": {
-    "CLAUDE_RGB_HOST": "192.168.2.95",
+    "CLAUDE_RGB_HOST": "非必需, 默认为claude-rgb.local",
     "CLAUDE_RGB_MODE": "auto",
-    "CLAUDE_RGB_LOG": "~/.claude/logs/rgb-wifi-hook.log"
+    "CLAUDE_RGB_LOG": "非必需，默认不写日志"
   },
   "hooks": {
     "SessionStart": [
@@ -11,7 +11,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 wifiClaudeCodeRGB/claude_rgb_wifi_hook.py",
+            "command": ".claude/hooks/claude_rgb_wifi_hook.py",
             "async": true,
             "timeout": 2
           }
@@ -24,7 +24,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 wifiClaudeCodeRGB/claude_rgb_wifi_hook.py",
+            "command": ".claude/hooks/claude_rgb_wifi_hook.py",
             "async": true,
             "timeout": 2
           }
@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 wifiClaudeCodeRGB/claude_rgb_wifi_hook.py",
+            "command": ".claude/hooks/claude_rgb_wifi_hook.py",
             "async": true,
             "timeout": 2
           }
@@ -50,7 +50,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 wifiClaudeCodeRGB/claude_rgb_wifi_hook.py",
+            "command": ".claude/hooks/claude_rgb_wifi_hook.py",
             "async": true,
             "timeout": 2
           }
@@ -63,7 +63,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 wifiClaudeCodeRGB/claude_rgb_wifi_hook.py",
+            "command": ".claude/hooks/claude_rgb_wifi_hook.py",
             "async": true,
             "timeout": 2
           }
@@ -76,7 +76,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 wifiClaudeCodeRGB/claude_rgb_wifi_hook.py",
+            "command": ".claude/hooks/claude_rgb_wifi_hook.py",
             "async": true,
             "timeout": 2
           }
@@ -89,7 +89,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 wifiClaudeCodeRGB/claude_rgb_wifi_hook.py",
+            "command": ".claude/hooks/claude_rgb_wifi_hook.py",
             "async": true,
             "timeout": 2
           }
@@ -102,7 +102,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 wifiClaudeCodeRGB/claude_rgb_wifi_hook.py",
+            "command": ".claude/hooks/claude_rgb_wifi_hook.py",
             "async": true,
             "timeout": 2
           }
@@ -115,7 +115,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 wifiClaudeCodeRGB/claude_rgb_wifi_hook.py",
+            "command": ".claude/hooks/claude_rgb_wifi_hook.py",
             "async": true,
             "timeout": 2
           }
@@ -124,11 +124,11 @@
     ],
     "StopFailure": [
       {
-        "matcher": "",
+        "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 wifiClaudeCodeRGB/claude_rgb_wifi_hook.py",
+            "command": ".claude/hooks/claude_rgb_wifi_hook.py",
             "async": true,
             "timeout": 2
           }

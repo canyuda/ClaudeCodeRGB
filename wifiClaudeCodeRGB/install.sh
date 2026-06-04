@@ -143,6 +143,7 @@ install_hook_script() {
 ESP_HOST=""
 MODE_VALUE=""
 LOG_VALUE=""
+PYTHON_BIN=""
 
 discover_esp32() {
     echo ""
@@ -156,6 +157,10 @@ discover_esp32() {
     elif command -v python >/dev/null 2>&1; then
         PYTHON_BIN="python"
     else
+        PYTHON_BIN=""
+    fi
+
+    if [ -z "$PYTHON_BIN" ]; then
         warn "Python not found, skipping mDNS discovery"
         fallback_manual_ip
         return
@@ -213,7 +218,10 @@ merge_settings() {
     mkdir -p "$(dirname "$settings_file")"
     [ -f "$settings_file" ] || echo '{}' > "$settings_file"
 
-    python3 - "$settings_file" "$host_value" "$mode_value" "$log_value" "$hook_cmd" <<'PYEOF'
+    # Use detected python binary (python3 or python)
+    local py_bin="${PYTHON_BIN:-python3}"
+
+    "$py_bin" - "$settings_file" "$host_value" "$mode_value" "$log_value" "$hook_cmd" <<'PYEOF'
 import json, sys
 
 settings_path = sys.argv[1]

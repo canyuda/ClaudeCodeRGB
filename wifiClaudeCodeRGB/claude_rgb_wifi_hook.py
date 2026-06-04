@@ -52,7 +52,6 @@ DEFAULT_HOST = "192.168.4.1"
 DEFAULT_HTTP_PORT = 80
 HTTP_TIMEOUT_SEC = 1
 MDNS_HOSTNAME = "claude-rgb.local"
-MDNS_TIMEOUT_SEC = 2
 # Cache resolved mDNS IP to avoid repeated lookups across hook invocations.
 # Stored as module-level mutable so it persists within a single process run.
 _mdns_cached_ip: Optional[str] = None
@@ -411,7 +410,7 @@ def resolve_mdns() -> Optional[str]:
             _mdns_cached_ip = results[0][4][0]
             log(f"mDNS resolved {MDNS_HOSTNAME} -> {_mdns_cached_ip}")
             return _mdns_cached_ip
-    except (socket.gaierror, OSError, Exception) as e:
+    except Exception as e:
         log(f"mDNS resolution failed for {MDNS_HOSTNAME}: {repr(e)}")
 
     return None

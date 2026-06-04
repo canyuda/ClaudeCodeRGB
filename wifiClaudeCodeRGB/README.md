@@ -50,7 +50,7 @@ Arduino IDE 打开 `claude_rgb_wifi.ino`，烧录到 ESP32-C3 SuperMini。
 ```
 
 部署脚本会：
-- 复制 `claude_rgb_wifi_hook.py` 到 `.claude/hooks/`
+- 下载 `claude_rgb_wifi_hook.py` 到 `.claude/hooks/`（从 GitHub 或本地）
 - 自动通过 mDNS 发现 ESP32（无需手动输入 IP）
 - 自动合并 hooks 配置到 settings.json
 
