@@ -5,8 +5,12 @@ Extended from the serial version with WiFi (HTTP) support.
 Communication priority: HTTP first, serial fallback.
 Only uses Python stdlib - no pip dependencies on any platform.
 
+mDNS auto-discovery: when CLAUDE_RGB_HOST is not set, the hook
+automatically resolves claude-rgb.local via mDNS to find the ESP32.
+No router lookup needed!
+
 Environment variables:
-  CLAUDE_RGB_HOST  - ESP32 IP address (default: 192.168.4.1)
+  CLAUDE_RGB_HOST  - ESP32 IP address (optional, mDNS auto-discovery if unset)
   CLAUDE_RGB_PORT  - Serial port (fallback, same as original)
   CLAUDE_RGB_MODE  - auto | http | serial (default: auto)
   CLAUDE_RGB_LOG   - Optional log file path
@@ -16,6 +20,7 @@ import glob
 import http.client
 import json
 import os
+import socket
 import sys
 import time
 
@@ -46,6 +51,11 @@ DEFAULT_BAUD = 115200
 DEFAULT_HOST = "192.168.4.1"
 DEFAULT_HTTP_PORT = 80
 HTTP_TIMEOUT_SEC = 1
+MDNS_HOSTNAME = "claude-rgb.local"
+MDNS_TIMEOUT_SEC = 2
+# Cache resolved mDNS IP to avoid repeated lookups across hook invocations.
+# Stored as module-level mutable so it persists within a single process run.
+_mdns_cached_ip: Optional[str] = None
 
 VALID_STATES = {
     "idle",
@@ -372,6 +382,58 @@ def write_state_to_serial(
 
 
 # ============================================================
+# mDNS auto-discovery
+# ============================================================
+
+def resolve_mdns() -> Optional[str]:
+    """Resolve claude-rgb.local via mDNS to an IP address.
+
+    Uses stdlib socket.getaddrinfo which leverages:
+    - macOS: Bonjour (built-in)
+    - Linux: Avahi (needs apt install avahi-daemon)
+    - Windows 10+: native mDNS
+
+    Returns IP string or None on failure.  Result is cached for the
+    lifetime of this process.
+    """
+    global _mdns_cached_ip
+
+    if _mdns_cached_ip is not None:
+        return _mdns_cached_ip
+
+    try:
+        # socket.getaddrinfo resolves .local names via mDNS on most platforms
+        results = socket.getaddrinfo(
+            MDNS_HOSTNAME, DEFAULT_HTTP_PORT,
+            socket.AF_INET, socket.SOCK_STREAM,
+        )
+        if results:
+            _mdns_cached_ip = results[0][4][0]
+            log(f"mDNS resolved {MDNS_HOSTNAME} -> {_mdns_cached_ip}")
+            return _mdns_cached_ip
+    except (socket.gaierror, OSError, Exception) as e:
+        log(f"mDNS resolution failed for {MDNS_HOSTNAME}: {repr(e)}")
+
+    return None
+
+
+def resolve_host(host: Optional[str] = None) -> str:
+    """Resolve the ESP32 host: explicit host > env var > mDNS > default."""
+    if host:
+        return host
+
+    env_host = os.environ.get("CLAUDE_RGB_HOST", "")
+    if env_host:
+        return env_host
+
+    mdns_ip = resolve_mdns()
+    if mdns_ip:
+        return mdns_ip
+
+    return DEFAULT_HOST
+
+
+# ============================================================
 # WiFi (HTTP) communication - NEW
 # ============================================================
 
@@ -392,7 +454,7 @@ def write_state_http(
         log(f"Invalid state for HTTP: {state}")
         return False
 
-    target_host = host or os.environ.get("CLAUDE_RGB_HOST", DEFAULT_HOST)
+    target_host = resolve_host(host)
 
     try:
         conn = http.client.HTTPConnection(
@@ -421,7 +483,7 @@ def get_esp_status(
     timeout: float = HTTP_TIMEOUT_SEC,
 ) -> Optional[Dict[str, Any]]:
     """Query ESP32 status via GET /status. Returns parsed JSON or None."""
-    target_host = host or os.environ.get("CLAUDE_RGB_HOST", DEFAULT_HOST)
+    target_host = resolve_host(host)
 
     try:
         conn = http.client.HTTPConnection(
@@ -609,6 +671,12 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
+        "--discover",
+        action="store_true",
+        help="Auto-discover ESP32 via mDNS (claude-rgb.local)",
+    )
+
+    parser.add_argument(
         "--print-input",
         action="store_true",
         help="Debug: print stdin JSON parsed from Claude Code hook",
@@ -643,6 +711,27 @@ def main() -> int:
             print(json.dumps(result, ensure_ascii=False, indent=2))
         else:
             print("Failed to query ESP32 status.", file=sys.stderr)
+            return 1
+        return 0
+
+    if args.discover:
+        print(f"Resolving {MDNS_HOSTNAME} via mDNS...")
+        ip = resolve_mdns()
+        if ip:
+            print(f"Found ESP32 at {ip} ({MDNS_HOSTNAME})")
+            # Verify by querying /status
+            status = get_esp_status(host=ip, port=args.http_port)
+            if status:
+                print(f"Status: {json.dumps(status, ensure_ascii=False, indent=2)}")
+            else:
+                print("Warning: device resolved but HTTP /status failed", file=sys.stderr)
+        else:
+            print(f"Could not resolve {MDNS_HOSTNAME}", file=sys.stderr)
+            print("Hints:", file=sys.stderr)
+            print("  - Make sure ESP32 is powered on and connected to WiFi", file=sys.stderr)
+            print("  - macOS: Bonjour is built-in", file=sys.stderr)
+            print("  - Linux: install avahi-daemon (sudo apt install avahi-daemon)", file=sys.stderr)
+            print("  - Windows 10+: mDNS is built-in", file=sys.stderr)
             return 1
         return 0
 

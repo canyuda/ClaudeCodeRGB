@@ -108,24 +108,62 @@ install_hook_script() {
 }
 
 # ============================================================
-# Step 3: Configure ESP32 IP and mode
+# Step 3: Auto-discover ESP32 via mDNS
 # ============================================================
 
 ESP_HOST=""
 MODE_VALUE=""
 LOG_VALUE=""
 
-configure_env() {
+discover_esp32() {
     echo ""
-    info "========== WiFi Configuration =========="
+    info "========== Device Discovery =========="
     echo ""
-    info "ESP32 should already be connected to your home WiFi."
-    info "Check the serial monitor for its IP address."
-    echo ""
+    info "Searching for ESP32 via mDNS (claude-rgb.local)..."
 
-    ESP_HOST="$(prompt_required "ESP32 IP" "Enter ESP32 IP address (e.g. 192.168.1.100)")"
-    echo ""
+    # Use the hook script's --discover to find the device
+    if command -v python3 >/dev/null 2>&1; then
+        PYTHON_BIN="python3"
+    elif command -v python >/dev/null 2>&1; then
+        PYTHON_BIN="python"
+    else
+        warn "Python not found, skipping mDNS discovery"
+        fallback_manual_ip
+        return
+    fi
 
+    DISCOVER_OUTPUT=$("$PYTHON_BIN" "$HOOK_TARGET" --discover 2>&1) || true
+
+    if echo "$DISCOVER_OUTPUT" | grep -q "Found ESP32"; then
+        # Extract IP from "Found ESP32 at 192.168.x.x (claude-rgb.local)"
+        ESP_HOST=$(echo "$DISCOVER_OUTPUT" | grep "Found ESP32 at" | sed 's/.*at \([0-9.]*\).*/\1/')
+        ok "ESP32 found via mDNS: $ESP_HOST (claude-rgb.local)"
+        echo ""
+        info "No need to set CLAUDE_RGB_HOST — the hook will auto-discover via mDNS"
+    else
+        warn "mDNS discovery failed — ESP32 not found on local network"
+        echo ""
+        info "Possible reasons:"
+        info "  - ESP32 is not powered on or not connected to WiFi"
+        info "  - Firmware not yet updated with mDNS support"
+        info "  - Linux: avahi-daemon not installed (sudo apt install avahi-daemon)"
+        echo ""
+        fallback_manual_ip
+    fi
+}
+
+fallback_manual_ip() {
+    info "You can manually enter the ESP32 IP address instead."
+    info "Check the serial monitor or your router for the IP."
+    echo ""
+    ESP_HOST="$(prompt_optional "ESP32 IP address" "")"
+
+    if [ -z "$ESP_HOST" ]; then
+        info "No IP set — hook will use mDNS auto-discovery at runtime"
+    fi
+}
+
+configure_mode() {
     MODE_VALUE="$(prompt_optional "Communication mode (auto/http/serial)" "auto")"
     echo ""
 
@@ -163,7 +201,12 @@ if "env" not in settings or not isinstance(settings["env"], dict):
 if "hooks" not in settings or not isinstance(settings["hooks"], dict):
     settings["hooks"] = {}
 
-settings["env"]["CLAUDE_RGB_HOST"] = host_value
+# Only set CLAUDE_RGB_HOST when explicitly provided (mDNS auto-discovery if empty)
+if host_value:
+    settings["env"]["CLAUDE_RGB_HOST"] = host_value
+elif "CLAUDE_RGB_HOST" in settings["env"]:
+    del settings["env"]["CLAUDE_RGB_HOST"]
+
 settings["env"]["CLAUDE_RGB_MODE"] = mode_value
 
 if log_value:
@@ -238,7 +281,11 @@ print_summary() {
     echo ""
     echo "  Hook script:  $HOOK_TARGET"
     echo "  Config:       $TARGET_SETTINGS ($SCOPE)"
-    echo "  ESP32 IP:     $ESP_HOST"
+    if [ -n "$ESP_HOST" ]; then
+        echo "  ESP32 IP:     $ESP_HOST"
+    else
+        echo "  ESP32 IP:     auto (mDNS: claude-rgb.local)"
+    fi
     echo "  Mode:         $MODE_VALUE"
     if [ -n "$LOG_VALUE" ]; then
         echo "  Log:          $LOG_VALUE"
@@ -247,8 +294,9 @@ print_summary() {
     fi
     echo ""
     info "Test:"
-    echo "  python3 $HOOK_TARGET --host $ESP_HOST --status"
-    echo "  python3 $HOOK_TARGET --host $ESP_HOST running"
+    echo "  python3 $HOOK_TARGET --discover"
+    echo "  python3 $HOOK_TARGET --status"
+    echo "  python3 $HOOK_TARGET running"
     echo ""
     info "Restart Claude Code for changes to take effect"
     echo "=========================================="
@@ -265,7 +313,8 @@ main() {
 
     parse_args "$@"
     install_hook_script
-    configure_env
+    discover_esp32
+    configure_mode
     merge_settings "$TARGET_SETTINGS" "$ESP_HOST" "$MODE_VALUE" "$LOG_VALUE" "$HOOK_CMD"
     print_summary
 }

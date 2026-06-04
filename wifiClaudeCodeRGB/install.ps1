@@ -88,27 +88,55 @@ function Install-HookScript {
 }
 
 # ============================================================
-# Step 4: Configure ESP32 IP and mode
+# Step 4: Auto-discover ESP32 via mDNS
 # ============================================================
 
 $script:EspHost = ""
 $script:ModeValue = ""
 $script:LogValue = ""
 
-function Configure-Env {
+function Discover-ESP32 {
     Write-Host ""
-    Write-Info "========== WiFi Configuration =========="
+    Write-Info "========== Device Discovery =========="
     Write-Host ""
-    Write-Info "ESP32 should already be connected to your home WiFi."
-    Write-Info "Check the serial monitor for its IP address."
-    Write-Host ""
+    Write-Info "Searching for ESP32 via mDNS (claude-rgb.local)..."
 
-    $script:EspHost = Read-Host "Enter ESP32 IP address (e.g. 192.168.1.100)"
-    if (-not $script:EspHost) {
-        Write-Err "ESP32 IP address cannot be empty"
-        exit 1
+    $discoverOutput = python $script:HookTarget --discover 2>&1
+    $discoverExit = $LASTEXITCODE
+
+    if ($discoverExit -eq 0 -and $discoverOutput -match "Found ESP32 at ([0-9.]+)") {
+        $script:EspHost = $Matches[1]
+        Write-Ok "ESP32 found via mDNS: $($script:EspHost) (claude-rgb.local)"
+        Write-Host ""
+        Write-Info "No need to set CLAUDE_RGB_HOST - the hook will auto-discover via mDNS"
     }
+    else {
+        Write-Warn "mDNS discovery failed - ESP32 not found on local network"
+        Write-Host ""
+        Write-Info "Possible reasons:"
+        Write-Info "  - ESP32 is not powered on or not connected to WiFi"
+        Write-Info "  - Firmware not yet updated with mDNS support"
+        Write-Host ""
+        Fallback-ManualIP
+    }
+}
 
+function Fallback-ManualIP {
+    Write-Info "You can manually enter the ESP32 IP address instead."
+    Write-Info "Check the serial monitor or your router for the IP."
+    Write-Host ""
+
+    $ipInput = Read-Host "ESP32 IP address (leave empty to use mDNS auto-discovery)"
+    if ($ipInput) {
+        $script:EspHost = $ipInput
+    }
+    else {
+        $script:EspHost = ""
+        Write-Info "No IP set - hook will use mDNS auto-discovery at runtime"
+    }
+}
+
+function Configure-Mode {
     Write-Host ""
     $modeInput = Read-Host "Communication mode (auto/http/serial) [auto]"
     $script:ModeValue = if ($modeInput) { $modeInput } else { "auto" }
@@ -153,7 +181,12 @@ if "env" not in settings or not isinstance(settings["env"], dict):
 if "hooks" not in settings or not isinstance(settings["hooks"], dict):
     settings["hooks"] = {}
 
-settings["env"]["CLAUDE_RGB_HOST"] = host_value
+# Only set CLAUDE_RGB_HOST when explicitly provided (mDNS auto-discovery if empty)
+if host_value:
+    settings["env"]["CLAUDE_RGB_HOST"] = host_value
+elif "CLAUDE_RGB_HOST" in settings["env"]:
+    del settings["env"]["CLAUDE_RGB_HOST"]
+
 settings["env"]["CLAUDE_RGB_MODE"] = mode_value
 if log_value:
     settings["env"]["CLAUDE_RGB_LOG"] = log_value
@@ -234,7 +267,12 @@ function Print-Summary {
     Write-Host ""
     Write-Host "  Hook script:  $($script:HookTarget)"
     Write-Host "  Config:       $($script:TargetSettings) ($($script:Scope))"
-    Write-Host "  ESP32 IP:     $($script:EspHost)"
+    if ($script:EspHost) {
+        Write-Host "  ESP32 IP:     $($script:EspHost)"
+    }
+    else {
+        Write-Host "  ESP32 IP:     auto (mDNS: claude-rgb.local)"
+    }
     Write-Host "  Mode:         $($script:ModeValue)"
     if ($script:LogValue) {
         Write-Host "  Log:          $($script:LogValue)"
@@ -244,8 +282,9 @@ function Print-Summary {
     }
     Write-Host ""
     Write-Info "Test:"
-    Write-Host "  python $($script:HookTarget) --host $($script:EspHost) --status"
-    Write-Host "  python $($script:HookTarget) --host $($script:EspHost) running"
+    Write-Host "  python $($script:HookTarget) --discover"
+    Write-Host "  python $($script:HookTarget) --status"
+    Write-Host "  python $($script:HookTarget) running"
     Write-Host ""
     Write-Info "Restart Claude Code for changes to take effect"
     Write-Host "=========================================="
@@ -262,6 +301,7 @@ Write-Host ""
 Check-Python
 Resolve-TargetPaths
 Install-HookScript
-Configure-Env
+Discover-ESP32
+Configure-Mode
 Merge-Settings
 Print-Summary

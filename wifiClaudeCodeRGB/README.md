@@ -1,11 +1,11 @@
 # WiFi 版 Claude Code RGB 状态灯
 
-ESP32-C3 SuperMini + RGB LED 无线版本。ESP32 通过 WiFi HTTP API 接收灯光状态指令，支持 WiFi Manager 配网门户，充电宝供电。
+ESP32-C3 SuperMini + RGB LED 无线版本。ESP32 通过 WiFi HTTP API 接收灯光状态指令，支持 WiFi Manager 配网门户，**mDNS 自动发现**（无需手动查 IP），充电宝供电。
 
 ## 架构
 
 ```
-Claude Code Hooks → Python hook (HTTP) → WiFi → ESP32-C3 (HTTP Server) → RGB LED
+Claude Code Hooks → Python hook (HTTP/mDNS) → WiFi → ESP32-C3 (HTTP Server) → RGB LED
 ```
 
 ## 与串口版的区别
@@ -16,7 +16,8 @@ Claude Code Hooks → Python hook (HTTP) → WiFi → ESP32-C3 (HTTP Server) →
 | 供电 | 电脑 USB | 充电宝 / 任意 USB 电源 |
 | 通信距离 | USB 线长度 | WiFi 覆盖范围（约 10-20m 室内） |
 | 配网 | 无需 | WiFi Manager（手机浏览器配网） |
-| 依赖 | 零（纯 stdlib） | 零（纯 stdlib，http.client） |
+| 设备发现 | 自动检测串口 | **mDNS 自动发现**（无需手动查 IP） |
+| 依赖 | 零（纯 stdlib） | 零（纯 stdlib，http.client + socket） |
 | 串口兼容 | — | auto 模式自动回退串口 |
 
 ## 快速开始
@@ -34,7 +35,7 @@ Arduino IDE 打开 `claude_rgb_wifi.ino`，烧录到 ESP32-C3 SuperMini。
 3. 浏览器自动弹出配网页面（或手动访问 `http://192.168.4.1`）
 4. 选择你家 WiFi，输入密码，点击 Connect
 5. ESP32 自动重启并连接家庭 WiFi
-6. 串口监视器打印分配的 IP 地址
+6. 配网完成！设备自动注册为 `claude-rgb.local`
 
 ### 3. 部署 Hook
 
@@ -50,18 +51,24 @@ Arduino IDE 打开 `claude_rgb_wifi.ino`，烧录到 ESP32-C3 SuperMini。
 
 部署脚本会：
 - 复制 `claude_rgb_wifi_hook.py` 到 `.claude/hooks/`
-- 交互式输入 ESP32 IP 地址
+- 自动通过 mDNS 发现 ESP32（无需手动输入 IP）
 - 自动合并 hooks 配置到 settings.json
 
 ### 4. 验证
 
 ```bash
-# 查询 ESP32 状态
-python3 claude_rgb_wifi_hook.py --host <ESP32_IP> --status
+# 自动发现 ESP32（推荐）
+python3 claude_rgb_wifi_hook.py --discover
 
-# 手动设置状态
-python3 claude_rgb_wifi_hook.py --host <ESP32_IP> running
-python3 claude_rgb_wifi_hook.py --host <ESP32_IP> error
+# 查询 ESP32 状态（自动通过 mDNS 查找设备）
+python3 claude_rgb_wifi_hook.py --status
+
+# 手动设置状态（无需指定 IP，mDNS 自动解析）
+python3 claude_rgb_wifi_hook.py running
+python3 claude_rgb_wifi_hook.py error
+
+# 如果 mDNS 不可用，仍可手动指定 IP
+python3 claude_rgb_wifi_hook.py --host 192.168.1.100 running
 
 # 模拟 hook 输入
 echo '{"hook_event_name":"UserPromptSubmit"}' | python3 claude_rgb_wifi_hook.py
@@ -93,14 +100,17 @@ echo '{"hook_event_name":"UserPromptSubmit"}' | python3 claude_rgb_wifi_hook.py
 ### 示例
 
 ```bash
-# 设置状态
-curl http://192.168.1.100/state/running    # 蓝灯慢闪
-curl http://192.168.1.100/state/tool       # 紫灯快闪
-curl http://192.168.1.100/state/error      # 红灯快闪
-curl http://192.168.1.100/state/idle       # 绿灯常亮
+# 设置状态（mDNS 域名，推荐）
+curl http://claude-rgb.local/state/running    # 蓝灯慢闪
+curl http://claude-rgb.local/state/tool       # 紫灯快闪
+curl http://claude-rgb.local/state/error      # 红灯快闪
+curl http://claude-rgb.local/state/idle       # 绿灯常亮
+
+# 也可直接用 IP
+curl http://192.168.1.100/state/running
 
 # 查询状态
-curl http://192.168.1.100/status
+curl http://claude-rgb.local/status
 # {"state":"idle","ip":"192.168.1.100","mode":"STA"}
 
 # 配网（AP 模式下）
@@ -137,6 +147,9 @@ HELP                                      # 帮助
 ## Python Hook
 
 ```bash
+# mDNS 自动发现（推荐，无需知道 IP）
+python3 claude_rgb_wifi_hook.py --discover
+
 # auto 模式（HTTP 优先，失败回退串口）
 python3 claude_rgb_wifi_hook.py running
 
@@ -146,18 +159,29 @@ python3 claude_rgb_wifi_hook.py --mode http running
 # 仅串口（与原版完全兼容）
 python3 claude_rgb_wifi_hook.py --mode serial running
 
-# 指定 ESP32 IP
+# 指定 ESP32 IP（mDNS 不可用时）
 python3 claude_rgb_wifi_hook.py --host 192.168.1.100 running
 
 # 查询状态
 python3 claude_rgb_wifi_hook.py --status
 ```
 
+### mDNS 自动发现
+
+固件烧录后，ESP32 会在 WiFi 连接成功时自动注册 mDNS 服务 `claude-rgb.local`。Python hook 在 **未设置 `CLAUDE_RGB_HOST`** 时自动通过 mDNS 解析设备地址，无需手动查 IP。
+
+主机发现优先级：**命令行 `--host` > 环境变量 `CLAUDE_RGB_HOST` > mDNS 自动发现 > 默认 IP**
+
+平台支持：
+- **macOS**：Bonjour 内置，开箱即用
+- **Linux**：需要安装 Avahi（`sudo apt install avahi-daemon`）
+- **Windows 10+**：内置 mDNS 支持
+
 ### 环境变量
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `CLAUDE_RGB_HOST` | `192.168.4.1` | ESP32 IP 地址 |
+| `CLAUDE_RGB_HOST` | (mDNS 自动发现) | ESP32 IP 地址（可选，不设置则自动 mDNS 发现） |
 | `CLAUDE_RGB_MODE` | `auto` | 通信模式：auto / http / serial |
 | `CLAUDE_RGB_PORT` | (自动检测) | 串口回退端口 |
 | `CLAUDE_RGB_LOG` | (空) | 日志文件路径 |

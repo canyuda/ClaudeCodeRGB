@@ -25,6 +25,7 @@
 #include <NetworkServer.h>
 #include <DNSServer.h>
 #include <Preferences.h>
+#include <ESPmDNS.h>
 
 #define RED_PIN    2
 #define GREEN_PIN  3
@@ -32,6 +33,7 @@
 
 #define AP_SSID    "ClaudeRGB"
 #define AP_PASS    "12345678"  // WPA2 min 8 chars, shown on config page
+#define MDNS_NAME  "claude-rgb"  // accessible as claude-rgb.local
 #define HTTP_PORT  80
 #define DNS_PORT   53
 #define WIFI_STA_TIMEOUT_MS  15000
@@ -302,6 +304,16 @@ bool connectSTA() {
   Serial.println();
   Serial.print("WiFi connected. IP: ");
   Serial.println(WiFi.localIP());
+
+  // Start mDNS so Python hook can resolve claude-rgb.local
+  if (MDNS.begin(MDNS_NAME)) {
+    MDNS.addService("http", "tcp", HTTP_PORT);
+    Serial.print("mDNS started: ");
+    Serial.print(MDNS_NAME);
+    Serial.println(".local");
+  } else {
+    Serial.println("mDNS failed to start (non-fatal)");
+  }
 
   isAPMode = false;
 
@@ -889,7 +901,10 @@ void setup() {
 
   if (!isAPMode) {
     Serial.print("Web control: http://");
-    Serial.println(WiFi.localIP());
+    Serial.print(MDNS_NAME);
+    Serial.println(".local  (or http://");
+    Serial.print(WiFi.localIP());
+    Serial.println(")");
   }
 }
 
