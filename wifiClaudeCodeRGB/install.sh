@@ -95,12 +95,41 @@ parse_args() {
 }
 
 # ============================================================
-# Step 2: Copy hook script
+# Step 2: Download hook script (HTTP with local fallback)
 # ============================================================
+
+HOOK_SCRIPT_URL="https://raw.githubusercontent.com/canyuda/ClaudeCodeRGB/main/wifiClaudeCodeRGB/claude_rgb_wifi_hook.py"
 
 install_hook_script() {
     mkdir -p "$HOOK_TARGET_DIR"
-    cp "$SCRIPT_DIR/claude_rgb_wifi_hook.py" "$HOOK_TARGET"
+
+    local local_source="$SCRIPT_DIR/claude_rgb_wifi_hook.py"
+
+    if [ -f "$local_source" ]; then
+        cp "$local_source" "$HOOK_TARGET"
+        ok "Hook script copied from local: $local_source"
+    elif command -v curl >/dev/null 2>&1; then
+        info "Downloading hook script from GitHub..."
+        if curl -fsSL "$HOOK_SCRIPT_URL" -o "$HOOK_TARGET"; then
+            ok "Hook script downloaded from GitHub"
+        else
+            err "Failed to download hook script"
+            exit 1
+        fi
+    elif command -v wget >/dev/null 2>&1; then
+        info "Downloading hook script from GitHub (wget)..."
+        if wget -q "$HOOK_SCRIPT_URL" -O "$HOOK_TARGET"; then
+            ok "Hook script downloaded from GitHub"
+        else
+            err "Failed to download hook script"
+            exit 1
+        fi
+    else
+        err "No curl or wget found, and no local claude_rgb_wifi_hook.py"
+        err "Install curl or place the script alongside install.sh"
+        exit 1
+    fi
+
     if [ "$IS_WINDOWS" = false ]; then
         chmod +x "$HOOK_TARGET"
     fi

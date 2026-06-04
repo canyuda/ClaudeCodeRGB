@@ -70,20 +70,32 @@ function Resolve-TargetPaths {
 }
 
 # ============================================================
-# Step 3: Copy hook script
+# Step 3: Download hook script (HTTP with local fallback)
 # ============================================================
+
+$HookScriptUrl = "https://raw.githubusercontent.com/canyuda/ClaudeCodeRGB/main/wifiClaudeCodeRGB/claude_rgb_wifi_hook.py"
 
 function Install-HookScript {
     New-Item -ItemType Directory -Path $script:HookTargetDir -Force | Out-Null
 
-    $sourceScript = Join-Path $ScriptDir "claude_rgb_wifi_hook.py"
-    if (-not (Test-Path $sourceScript)) {
-        Write-Err "Hook script not found: $sourceScript"
-        Write-Err "Make sure claude_rgb_wifi_hook.py is in the same directory as install.ps1"
-        exit 1
+    $localSource = Join-Path $ScriptDir "claude_rgb_wifi_hook.py"
+
+    if (Test-Path $localSource) {
+        Copy-Item $localSource $script:HookTarget -Force
+        Write-Ok "Hook script copied from local: $localSource"
+    }
+    else {
+        Write-Info "Downloading hook script from GitHub..."
+        try {
+            Invoke-WebRequest -Uri $HookScriptUrl -OutFile $script:HookTarget -UseBasicParsing
+            Write-Ok "Hook script downloaded from GitHub"
+        }
+        catch {
+            Write-Err "Failed to download hook script: $_"
+            exit 1
+        }
     }
 
-    Copy-Item $sourceScript $script:HookTarget -Force
     Write-Ok "Hook script installed to $($script:HookTarget)"
 }
 
