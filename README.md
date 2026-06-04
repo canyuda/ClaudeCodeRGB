@@ -336,3 +336,4 @@ Claude 工具执行失败 / StopFailure
 |------|------|
 | [硬件准备与开发指南](./docs/hardware-guide.md) | 硬件采购、接线、固件烧录、Python 脚本开发与测试 |
 | [为什么选择 ESP32-C3 SuperMini](./docs/为什么选择ESP32-C3%20SuperMini.md) | 开发板选型理由 |
+| [WiFi 无线状态灯](./wifiClaudeCodeRGB/README.md) | WiFi 版方案说明、配网流程、HTTP API、部署指南 |
