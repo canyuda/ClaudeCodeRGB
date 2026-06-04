@@ -1,0 +1,139 @@
+{
+  "env": {
+    "CLAUDE_RGB_HOST": "192.168.2.95",
+    "CLAUDE_RGB_MODE": "auto",
+    "CLAUDE_RGB_LOG": "~/.claude/logs/rgb-wifi-hook.log"
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 wifiClaudeCodeRGB/claude_rgb_wifi_hook.py",
+            "async": true,
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 wifiClaudeCodeRGB/claude_rgb_wifi_hook.py",
+            "async": true,
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 wifiClaudeCodeRGB/claude_rgb_wifi_hook.py",
+            "async": true,
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 wifiClaudeCodeRGB/claude_rgb_wifi_hook.py",
+            "async": true,
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 wifiClaudeCodeRGB/claude_rgb_wifi_hook.py",
+            "async": true,
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 wifiClaudeCodeRGB/claude_rgb_wifi_hook.py",
+            "async": true,
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "PermissionDenied": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 wifiClaudeCodeRGB/claude_rgb_wifi_hook.py",
+            "async": true,
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 wifiClaudeCodeRGB/claude_rgb_wifi_hook.py",
+            "async": true,
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 wifiClaudeCodeRGB/claude_rgb_wifi_hook.py",
+            "async": true,
+            "timeout": 2
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 wifiClaudeCodeRGB/claude_rgb_wifi_hook.py",
+            "async": true,
+            "timeout": 2
+          }
+        ]
+      }
+    ]
+  }
+}

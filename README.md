@@ -312,11 +312,11 @@ Claude 工具执行失败 / StopFailure
 - [x] 烧录程序
 - [x] 对接 Claude Code，实现 CC 不同状态下的灯光变化（idle / running / tool / ask / done / error）
 - [x] 跨平台支持（macOS / Linux / Windows）
+- [x] 基于 WiFi 实现无线状态灯（使用充电宝供电） — 详见 [wifiClaudeCodeRGB/](./wifiClaudeCodeRGB/)
 
 ### 🚧 暂未实现
 
 - [ ] 3D 打印外壳（急需懂 3D 打印的同学帮助）
-- [ ] 基于 WiFi 或蓝牙实现无线状态灯（使用充电宝供电）
 - [ ] 焊接电池模块实现真正意义上的无线状态灯（产品化）
 
 ### 💡 可能的优化方案
