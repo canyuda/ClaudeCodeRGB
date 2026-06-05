@@ -44,3 +44,6 @@ credentials.h
 __pycache__/
 .claude/hooks/
 .claude/settings.local.json
+.claude/test.log
+AGENTS.md
+.codex/
