@@ -40,10 +40,10 @@ prompt_required() {
     local prompt_text="$2"
     local value=""
     while [ -z "$value" ]; do
-        echo -e -n "${CYAN}${prompt_text}${NC}: "
+        echo -e -n "${CYAN}${prompt_text}${NC}: " >&2
         read -r value </dev/tty
         if [ -z "$value" ]; then
-            warn "${varname} cannot be empty"
+            warn "${varname} cannot be empty" >&2
         fi
     done
     echo "$value"
@@ -52,7 +52,7 @@ prompt_required() {
 prompt_optional() {
     local prompt_text="$1"
     local value=""
-    echo -e -n "${CYAN}${prompt_text}${NC} (leave empty to skip): "
+    echo -e -n "${CYAN}${prompt_text}${NC} (leave empty to skip): " >&2
     read -r value </dev/tty
     echo "$value"
 }
@@ -62,13 +62,13 @@ prompt_yesno() {
     local default="${2:-n}"
     local answer=""
     while true; do
-        echo -e -n "${CYAN}${prompt_text}${NC} [y/N]: "
+        echo -e -n "${CYAN}${prompt_text}${NC} [y/N]: " >&2
         read -r answer </dev/tty
         answer="${answer:-$default}"
         case "$answer" in
             y|Y) return 0 ;;
             n|N) return 1 ;;
-            *) warn "Please enter y or n" ;;
+            *) warn "Please enter y or n" >&2 ;;
         esac
     done
 }

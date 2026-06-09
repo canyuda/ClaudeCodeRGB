@@ -36,10 +36,10 @@ prompt_required() {
     local prompt_text="$2"
     local value=""
     while [ -z "$value" ]; do
-        echo -e -n "${CYAN}${prompt_text}${NC}: "
+        echo -e -n "${CYAN}${prompt_text}${NC}: " >&2
         read -r value </dev/tty
         if [ -z "$value" ]; then
-            warn "${varname} cannot be empty"
+            warn "${varname} cannot be empty" >&2
         fi
     done
     echo "$value"
@@ -50,9 +50,9 @@ prompt_optional() {
     local default="${2:-}"
     local value=""
     if [ -n "$default" ]; then
-        echo -e -n "${CYAN}${prompt_text}${NC} [${default}]: "
+        echo -e -n "${CYAN}${prompt_text}${NC} [${default}]: " >&2
     else
-        echo -e -n "${CYAN}${prompt_text}${NC} (leave empty to skip): "
+        echo -e -n "${CYAN}${prompt_text}${NC} (leave empty to skip): " >&2
     fi
     read -r value </dev/tty
     echo "${value:-$default}"

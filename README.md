@@ -1,4 +1,4 @@
-# ClaudeCodeRGB
+# ClaudeCodeRGB(串口方案)
 
 基于 ESP32C3 Super Mini + RGB 灯模块(共阴) 实现的Claude Code指示灯系统。
 
