@@ -169,11 +169,11 @@ discover_esp32() {
     DISCOVER_OUTPUT=$("$PYTHON_BIN" "$HOOK_TARGET" --discover 2>&1) || true
 
     if echo "$DISCOVER_OUTPUT" | grep -q "Found ESP32"; then
-        # Extract IP from "Found ESP32 at 192.168.x.x (claude-rgb.local)"
-        ESP_HOST=$(echo "$DISCOVER_OUTPUT" | grep "Found ESP32 at" | sed 's/.*at \([0-9.]*\).*/\1/')
-        ok "ESP32 found via mDNS: $ESP_HOST (claude-rgb.local)"
+        # Use mDNS hostname as default — resilient to DHCP IP changes
+        ESP_HOST="claude-rgb.local"
+        ok "ESP32 found via mDNS: $ESP_HOST"
         echo ""
-        info "No need to set CLAUDE_RGB_HOST — the hook will auto-discover via mDNS"
+        info "CLAUDE_RGB_HOST will default to $ESP_HOST (mDNS auto-discovery)"
     else
         warn "mDNS discovery failed — ESP32 not found on local network"
         echo ""
